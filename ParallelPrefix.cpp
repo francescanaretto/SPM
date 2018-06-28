@@ -17,46 +17,45 @@ class ParallelPrefix{
     public:
         void init(vector<T> input, int numberWorkers, function<T(T, T)> f);
     private:
-        void master(vector<T> input, int numberWorkers, function<T(T, T)> f);
+        void master(int numberWorkers, function<T(T, T)> f);
         void compute(int start, int end, int level, int iterFactor, function<T(T, T)> f);
         vector<vector<T>> interValue;
         int elChuck;
-        int leng;
+        int level;
 };
 
 template <class T>
 void ParallelPrefix<T>::init(vector<T> input, int numberWorkers, function<T(T, T)> f){
     //init di interValue: intervalue[0] = input
-    leng = ceil(log2(input.size()))+1;
-    interValue.resize(leng);
+    interValue.resize(2);
     interValue[0] = input;
-    for(int i = 0; i < interValue.size(); i++)
-        interValue[i].resize(input.size());
+    interValue[1].resize(input.size());
     // split del lavoro tra i workers possibili
     elChuck  = ceil(interValue[0].size()/numberWorkers);
     auto start   = std::chrono::high_resolution_clock::now();
-    master(input, numberWorkers, f);
+    master(numberWorkers, f);
     auto elapsed = std::chrono::high_resolution_clock::now() - start;
     auto msec    = std::chrono::duration_cast<std::chrono::milliseconds>(elapsed).count();
     string title = to_string(numberWorkers)+"_"+to_string(input.size())+"_"+"C.txt";
     ofstream output;
     output.open(title);
-    leng --;
+    if(level == 1) level = 0;
+    else level = 1;
     for(int i= 0; i < input.size(); i++){
-        output<<interValue[leng][i]<<" ";
+        output<<interValue[level][i]<<" ";
     }
     output << "\n Elapsed time is " << msec << " msecs ";    
     output.close();
 }    
 
 template <class T>
-void ParallelPrefix<T>::master(vector<T> input, int numberWorkers, function<T(T, T)> f){
+void ParallelPrefix<T>::master(int numberWorkers, function<T(T, T)> f){
     //sistemo chucnks index
     int start = 0, end = elChuck;
     // mando in esecuzione, aspetto il ritorno dei threads 
     vector<thread> workers;
     workers.resize(numberWorkers);
-    int level = 1;
+    level = 1;
     for(int iterFactor = 1; iterFactor < interValue[0].size(); iterFactor= iterFactor*2){
         for(int i = 0; i < numberWorkers; i++){
             if(i == numberWorkers-1){
@@ -73,13 +72,16 @@ void ParallelPrefix<T>::master(vector<T> input, int numberWorkers, function<T(T,
         }
         start = 0;
         end = elChuck;  
-        level++;     
+        if(level == 1) level = 0;
+        else level = 1;    
     }
 }    
 
 template <class T>
 void ParallelPrefix<T>::compute(int start, int end, int level, int iterFactor, function<T(T,T)> f){
-    int oldLevel = level-1;
+    int oldLevel;
+    if(level == 0) oldLevel = 1;
+    else oldLevel = 0;
     while(start < end){
         if(start < iterFactor){
             interValue[level][start] = interValue[oldLevel][start];
